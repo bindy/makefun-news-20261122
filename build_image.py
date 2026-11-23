@@ -1,33 +1,41 @@
 #!/usr/bin/env python3
-"""Build the 22 Nov 2026 world-news image: a dense 5x6 grid of 30 stories.
+"""Render the 22 Nov 2026 world-news image: 30 stories in a 5x6 grid.
 
-Programmatic Pillow layout, so every headline stays legible. Each card has a
-region tag, a short headline and one supporting detail line.
-Stories are those reported on 22 Nov 2026 (Reuters/AP and other roundups
+The layout is drawn with Pillow so every headline stays legible. Each card
+carries a region tag, a short headline and one supporting detail line. The
+stories are the ones reported on 22 Nov 2026 (Reuters/AP and other roundups
 checked 23 Nov 2026); stories already used in the 21 Nov entry are not
 repeated except where 22 Nov brought a new development (COP31 collapse).
 """
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 1024, 1024
-BG = (255, 255, 255)
-INK = (17, 24, 39)
-MUTED = (75, 85, 99)
+PAGE = (1024, 1024)
+PAPER = "#ffffff"
+TEXT = "#111827"
+FAINT = "#4b5563"
+HEADER_H = 88
+FOOT_H = 28
+MARGIN = 12
+GAP = 8
+COLS = 5
+ROWS = 6
+CARD_FILL = "#f8fafc"
+CARD_EDGE = "#e2e8f0"
 
-REGION_COLORS = {
-    "EUROPE": (37, 99, 235),
-    "UKRAINE": (202, 138, 4),
-    "MIDDLE EAST": (190, 24, 93),
-    "ASIA": (5, 150, 105),
-    "MARKETS": (124, 58, 237),
-    "SPACE": (13, 148, 136),
-    "TECH": (2, 132, 199),
-    "AFRICA": (217, 119, 6),
-    "AMERICAS": (220, 38, 38),
-    "CLIMATE": (22, 163, 74),
-    "WORLD": (71, 85, 105),
-    "HEALTH": (219, 39, 119),
-    "SPORTS": (15, 118, 110),
+PALETTE = {
+    "EUROPE": "#2563eb",
+    "UKRAINE": "#ca8a04",
+    "MIDDLE EAST": "#be185d",
+    "ASIA": "#059669",
+    "MARKETS": "#7c3aed",
+    "SPACE": "#0d9488",
+    "TECH": "#0284c7",
+    "AFRICA": "#d97706",
+    "AMERICAS": "#dc2626",
+    "CLIMATE": "#16a34a",
+    "WORLD": "#475569",
+    "HEALTH": "#db2777",
+    "SPORTS": "#0f766e",
 }
 
 STORIES = [
@@ -63,61 +71,70 @@ STORIES = [
     ("EUROPE", "UK public turns against Brexit", "Polls indicate opinion shifting away from Brexit"),
 ]
 
-def font(size, bold=False):
-    name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
-    return ImageFont.truetype(f"/usr/share/fonts/truetype/dejavu/{name}", size)
 
-def wrap(draw, text, fnt, max_w):
-    words, lines, cur = text.split(), [], ""
-    for w in words:
-        trial = (cur + " " + w).strip()
-        if draw.textlength(trial, font=fnt) <= max_w:
-            cur = trial
+def typeface(size, bold=False):
+    """Load a DejaVu face at the given size."""
+    stem = "DejaVuSans-Bold" if bold else "DejaVuSans"
+    return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/" + stem + ".ttf", size)
+
+
+def split_lines(canvas, text, face, max_width):
+    """Split text into as many lines as fit within max_width."""
+    out = []
+    current = ""
+    for word in text.split():
+        candidate = (current + " " + word).strip()
+        if canvas.textlength(candidate, font=face) <= max_width:
+            current = candidate
+        elif current:
+            out.append(current)
+            current = word
         else:
-            if cur:
-                lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    return lines
+            current = word
+    if current:
+        out.append(current)
+    return out
+
+
+def draw_card(canvas, number, region, head, detail, x, y, cw, ch):
+    """Draw one story card at (x, y) with size cw x ch."""
+    color = PALETTE[region]
+    canvas.rounded_rectangle((x, y, x + cw, y + ch), radius=8, fill=CARD_FILL, outline=CARD_EDGE)
+    canvas.rounded_rectangle((x, y, x + cw, y + 5), radius=3, fill=color)
+    canvas.text((x + 8, y + 11), region, font=typeface(10, True), fill=color)
+    canvas.text((x + cw - 8, y + 11), "%02d" % number, font=typeface(10, True), fill=color, anchor="ra")
+    canvas.line(((x + 8, y + 26), (x + cw - 8, y + 26)), fill=CARD_EDGE)
+    head_lines = split_lines(canvas, head, typeface(14, True), cw - 16)[:3]
+    text_y = y + 30
+    for line in head_lines:
+        canvas.text((x + 8, text_y), line, font=typeface(14, True), fill=TEXT)
+        text_y += 18
+    detail_lines = split_lines(canvas, detail, typeface(11), cw - 16)[:2]
+    for line in detail_lines:
+        canvas.text((x + 8, text_y + 2), line, font=typeface(11), fill=FAINT)
+        text_y += 14
+
 
 def main():
-    assert len(STORIES) == 30, len(STORIES)
-    img = Image.new("RGB", (W, H), BG)
-    d = ImageDraw.Draw(img)
-    # Header
-    d.rectangle([0, 0, W, 88], fill=(15, 23, 42))
-    d.text((16, 12), "THE WORLD IN ONE PICTURE", font=font(30, True), fill=(255, 255, 255))
-    d.text((16, 52), "SUNDAY, 22 NOVEMBER 2026  •  30 STORIES  •  9 SECTIONS", font=font(17), fill=(191, 219, 254))
-    d.text((W - 16, 52), "make.fun", font=font(17, True), fill=(147, 197, 253), anchor="ra")
-    # Grid: 5 cols x 6 rows
-    margin, gap = 12, 8
-    cols, rows = 5, 6
-    cw = (W - 2 * margin - (cols - 1) * gap) // cols
-    ch = (H - 88 - 28 - margin - (rows - 1) * gap) // rows
-    top = 88 + 10
-    for i, (region, head, detail) in enumerate(STORIES):
-        r, c = divmod(i, cols)
-        x = margin + c * (cw + gap)
-        y = top + r * (ch + gap)
-        color = REGION_COLORS[region]
-        d.rounded_rectangle([x, y, x + cw, y + ch], radius=8, fill=(248, 250, 252), outline=(226, 232, 240))
-        d.rounded_rectangle([x, y, x + cw, y + 5], radius=3, fill=color)
-        d.text((x + 8, y + 11), region, font=font(10, True), fill=color)
-        d.text((x + cw - 8, y + 11), f"{i + 1:02d}", font=font(10, True), fill=color, anchor="ra")
-        d.line([(x + 8, y + 26), (x + cw - 8, y + 26)], fill=(226, 232, 240))
-        lines = wrap(d, head, font(14, True), cw - 16)[:3]
-        ly = y + 30
-        for ln in lines:
-            d.text((x + 8, ly), ln, font=font(14, True), fill=INK)
-            ly += 18
-        dlines = wrap(d, detail, font(11), cw - 16)[:2]
-        for ln in dlines:
-            d.text((x + 8, ly + 2), ln, font=font(11), fill=MUTED)
-            ly += 14
-    d.text((16, H - 22), "Sources: Reuters, AP, AFP, Al Jazeera  •  Headlines as reported on 22 Nov 2026", font=font(11), fill=MUTED)
-    img.save("/home/hatch/workspace/makefun-news-20261122/entry.png", "PNG")
-    print("saved entry.png", img.size)
+    assert len(STORIES) == 30
+    img = Image.new("RGB", PAGE, PAPER)
+    canvas = ImageDraw.Draw(img)
+    canvas.rectangle((0, 0, PAGE[0], HEADER_H), fill="#0f172a")
+    canvas.text((16, 12), "THE WORLD IN ONE PICTURE", font=typeface(30, True), fill="#ffffff")
+    canvas.text((16, 52), "SUNDAY, 22 NOVEMBER 2026  •  30 STORIES  •  9 SECTIONS", font=typeface(17), fill="#bfdbfe")
+    canvas.text((PAGE[0] - 16, 52), "make.fun", font=typeface(17, True), fill="#93c5fd", anchor="ra")
+    cw = (PAGE[0] - 2 * MARGIN - (COLS - 1) * GAP) // COLS
+    ch = (PAGE[1] - HEADER_H - FOOT_H - MARGIN - (ROWS - 1) * GAP) // ROWS
+    top = HEADER_H + 10
+    for number, (region, head, detail) in enumerate(STORIES, start=1):
+        row, col = divmod(number - 1, COLS)
+        draw_card(canvas, number, region, head, detail,
+                  MARGIN + col * (cw + GAP), top + row * (ch + GAP), cw, ch)
+    canvas.text((16, PAGE[1] - 22), "Sources: Reuters, AP, AFP, Al Jazeera  •  Headlines as reported on 22 Nov 2026", font=typeface(11), fill=FAINT)
+    out_path = "/home/hatch/workspace/makefun-news-20261122/entry.png"
+    img.save(out_path, "PNG")
+    print("saved", out_path, img.size)
+
 
 if __name__ == "__main__":
     main()

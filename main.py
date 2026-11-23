@@ -1,21 +1,20 @@
 """make.fun bounty: Sum up 22 November's world news in one image.
 
-Entry program. No network, no randomness: it copies the pre-made
-image bundled in this repository (entry.png, 1024x1024 PNG) to
-/output/entry.png. Running it twice writes the same bytes.
+The entry program. It does no network calls and uses no randomness: it
+copies the finished image shipped in this repository (entry.png, a
+1024x1024 PNG) to /output/entry.png. Running it twice writes identical bytes.
 """
-import os
-import shutil
+from pathlib import Path
 
 
 def main() -> None:
-    here = os.path.dirname(os.path.abspath(__file__))
-    src = os.path.join(here, "entry.png")
-    out_dir = "/output"
-    os.makedirs(out_dir, exist_ok=True)
-    dst = os.path.join(out_dir, "entry.png")
-    shutil.copyfile(src, dst)
-    print(f"Wrote {dst} ({os.path.getsize(dst)} bytes)")
+    root = Path(__file__).resolve().parent
+    source = root / "entry.png"
+    target_dir = Path("/output")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / "entry.png"
+    target.write_bytes(source.read_bytes())
+    print(f"Wrote {target} ({target.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
