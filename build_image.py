@@ -106,11 +106,11 @@ def main():
         d.text((x + 8, y + 11), region, font=font(10, True), fill=color)
         d.text((x + cw - 8, y + 11), f"{i + 1:02d}", font=font(10, True), fill=color, anchor="ra")
         d.line([(x + 8, y + 26), (x + cw - 8, y + 26)], fill=(226, 232, 240))
-        lines = wrap(d, head, font(13, True), cw - 16)[:3]
+        lines = wrap(d, head, font(14, True), cw - 16)[:3]
         ly = y + 30
         for ln in lines:
-            d.text((x + 8, ly), ln, font=font(13, True), fill=INK)
-            ly += 17
+            d.text((x + 8, ly), ln, font=font(14, True), fill=INK)
+            ly += 18
         dlines = wrap(d, detail, font(11), cw - 16)[:2]
         for ln in dlines:
             d.text((x + 8, ly + 2), ln, font=font(11), fill=MUTED)
